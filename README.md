@@ -17,7 +17,6 @@ Our Travel Pocket은 **2026년 8월 28일 금요일 여행에서 직접 사용�
 
 ## 예정 기술 스택과 순서
 
-Next.js App Router, TypeScript strict, Tailwind CSS, React Hook Form, Zod, Vitest, Playwright, localStorage, Vercel을 사용한다.
+Node.js 24 LTS, Next.js App Router, TypeScript strict, Tailwind CSS, React Hook Form, Zod, Vitest, Playwright, localStorage, Vercel을 사용한다.
 
 모바일 앱 셸 → 금액·분할·최소 송금 알고리즘 → localStorage와 여행·일행·경비 관리 → 집계·정산 UI → 모바일 E2E 및 배포 준비 순서로 구현한다. 실제 배포는 사용자 승인 이후에만 수행한다.
-

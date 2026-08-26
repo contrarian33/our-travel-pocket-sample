@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: #f7f5ef;
+  --foreground: #17231d;
+  --surface: #fffdf8;
+  --muted: #5e6b64;
+  --accent: #246b4b;
+  --border: #dce3dc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--background);
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  overflow-x: hidden;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
