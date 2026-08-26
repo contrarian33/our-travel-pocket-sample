@@ -1,60 +1,26 @@
 "use client";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { formatAmountMinor } from "@/lib/domain/money";
+import { addExpense, addParticipant, createTrip, deleteExpense, deleteParticipant, filterExpenses, updateExpense, updateParticipant, updateTrip, type ExpenseFilter, type ExpenseInput, type TripInput } from "@/lib/state/travel-store";
+import { clearState, loadState, type StorageAdapter } from "@/lib/storage/repository";
+import { normalizeText, TEXT_LIMITS, type ExpenseV1, type StoredStateV1 } from "@/lib/storage/schema";
 
-export const SHELL_COPY = {
-  title: "Our Travel Pocket",
-  eyebrow: "금요일 여행용 단일 기기 실험판",
-  status: "여행 데이터를 확인하는 중입니다",
-  storageNotice: "여행 데이터는 이 브라우저에만 저장됩니다.",
-} as const;
+export const SHELL_COPY={title:"Our Travel Pocket",eyebrow:"금요일 여행용 단일 기기 실험판",status:"여행 데이터를 확인하는 중입니다",storageNotice:"여행 데이터는 이 브라우저에만 저장됩니다."} as const;
+export const NAVIGATION_ITEMS=["여행","경비","정산"] as const;
+type ViewState={status:"loading"}|{status:"empty"}|{status:"ready";data:StoredStateV1}|{status:"writeError";data:StoredStateV1;message:string}|{status:"corrupt";message:string};
+const blankTrip:TripInput={name:"",country:null,startDate:"",endDate:""};
+export function formatLocalDate(date:Pick<Date,"getFullYear"|"getMonth"|"getDate">):string{const year=date.getFullYear();const month=String(date.getMonth()+1).padStart(2,"0");const day=String(date.getDate()).padStart(2,"0");return `${year}-${month}-${day}`}
+const today=()=>formatLocalDate(new Date());
+function getBrowserStorage():StorageAdapter|null{try{return window.localStorage}catch{return null}}
+function Notice(){return <p className="notice">브라우저 데이터 삭제·시크릿 모드·다른 기기에서는 데이터가 유지되지 않습니다. 백업과 복구 기능이 없습니다.</p>}
+function Field({label,children}:{label:string;children:ReactNode}){return <label className="field"><span>{label}</span>{children}</label>}
+function TripForm({initial=blankTrip,submitLabel,onSubmit}:{initial?:TripInput;submitLabel:string;onSubmit:(input:TripInput)=>string|null}){const[form,setForm]=useState(initial);const[error,setError]=useState("");const[fieldErrors,setFieldErrors]=useState<{name?:string;country?:string}>({});return <form className="stack" onSubmit={(event:FormEvent)=>{event.preventDefault();const errors={name:normalizeText(form.name).length>TEXT_LIMITS.tripName?"여행 이름은 정돈 후 100자 이하여야 합니다.":undefined,country:form.country&&normalizeText(form.country).length>TEXT_LIMITS.country?"국가는 정돈 후 100자 이하여야 합니다.":undefined};setFieldErrors(errors);if(errors.name||errors.country)return;setError(onSubmit({...form,country:form.country||null})??"")}}><Field label="여행 이름"><input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>{fieldErrors.name&&<span role="alert" className="error">{fieldErrors.name}</span>}</Field><Field label="국가 (선택)"><input value={form.country??""} onChange={e=>setForm({...form,country:e.target.value})}/>{fieldErrors.country&&<span role="alert" className="error">{fieldErrors.country}</span>}</Field><div className="two"><Field label="시작일"><input required type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})}/></Field><Field label="종료일"><input required type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})}/></Field></div>{error&&<p role="alert" className="error">{error}</p>}<button className="primary">{submitLabel}</button></form>}
+function ExpenseForm({state,existing,onSave,onCancel}:{state:StoredStateV1;existing?:ExpenseV1;onSave:(input:ExpenseInput)=>string|null;onCancel:()=>void}){const[form,setForm]=useState<ExpenseInput>({title:existing?.title??"",expenseDate:existing?.expenseDate??today(),currency:existing?.currency??"KRW",amount:existing?formatAmountMinor(existing.currency,existing.amountMinor):"",payerParticipantId:existing?.payerParticipantId??state.trip.participants[0]?.id??"",kind:existing?.kind??"shared"});const[error,setError]=useState("");const[titleError,setTitleError]=useState("");const eligible=existing?.kind==="shared"&&form.kind==="shared"?state.trip.participants.filter(p=>existing.participantIds.includes(p.id)):state.trip.participants;return <form className="card stack" onSubmit={e=>{e.preventDefault();const nextTitleError=normalizeText(form.title).length>TEXT_LIMITS.expenseTitle?"경비 항목명은 정돈 후 120자 이하여야 합니다.":"";setTitleError(nextTitleError);if(nextTitleError)return;setError(onSave(form)??"")}}><h3>{existing?"경비 수정":"경비 등록"}</h3><Field label="항목명"><input required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/>{titleError&&<span role="alert" className="error">{titleError}</span>}</Field><Field label="날짜"><input required type="date" value={form.expenseDate} onChange={e=>setForm({...form,expenseDate:e.target.value})}/></Field><div className="two"><Field label="통화"><select value={form.currency} onChange={e=>setForm({...form,currency:e.target.value as ExpenseInput["currency"]})}><option>KRW</option><option>JPY</option><option>USD</option></select></Field><Field label="금액"><input required inputMode={form.currency==="USD"?"decimal":"numeric"} value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/></Field></div><Field label="결제자"><select required value={form.payerParticipantId} onChange={e=>setForm({...form,payerParticipantId:e.target.value})}>{eligible.map(p=><option key={p.id} value={p.id}>{p.displayName}</option>)}</select></Field><Field label="구분"><select value={form.kind} onChange={e=>{const kind=e.target.value as ExpenseInput["kind"];const payerParticipantId=kind==="shared"&&existing?.kind==="shared"&&!existing.participantIds.includes(form.payerParticipantId)?existing.payerParticipantId:form.payerParticipantId;setForm({...form,kind,payerParticipantId})}}><option value="shared">공동 경비</option><option value="personal">개인 지출</option></select></Field>{error&&<p role="alert" className="error">{error}</p>}<div className="actions"><button className="primary">저장</button><button type="button" onClick={onCancel}>취소</button></div></form>}
+export function expenseDeletionMessage(expense:Pick<ExpenseV1,"title"|"kind">):string{return expense.kind==="shared"?`'${expense.title}' 공동 경비를 삭제할까요? 경비 목록에서 제거되며 향후 공동 경비 집계와 정산 계산에서도 제외됩니다. 삭제 후 복구할 수 없습니다.`:`'${expense.title}' 개인 지출을 삭제할까요? 경비 목록에서 제거되고 개인 지출 기록이 삭제됩니다. 삭제 후 복구할 수 없습니다.`}
 
-export const NAVIGATION_ITEMS = ["여행", "경비", "정산"] as const;
-
-export function AppShell() {
-  return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-10">
-      <div className="flex flex-1 items-center py-6">
-        <section
-          aria-labelledby="app-title"
-          aria-busy="true"
-          className="w-full min-w-0 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[0_18px_50px_rgba(36,107,75,0.08)]"
-        >
-          <p className="text-sm font-semibold text-[var(--accent)]">
-            {SHELL_COPY.eyebrow}
-          </p>
-          <h1 id="app-title" className="mt-3 text-3xl font-bold tracking-tight">
-            {SHELL_COPY.title}
-          </h1>
-
-          <div role="status" className="mt-10 flex items-center gap-3" aria-live="polite">
-            <span
-              aria-hidden="true"
-              className="size-3 shrink-0 animate-pulse rounded-full bg-[var(--accent)]"
-            />
-            <p className="text-base font-medium">{SHELL_COPY.status}</p>
-          </div>
-
-          <p className="mt-5 border-t border-[var(--border)] pt-5 text-sm leading-6 text-[var(--muted)]">
-            {SHELL_COPY.storageNotice}
-          </p>
-        </section>
-      </div>
-
-      <nav aria-label="모바일 주요 메뉴" className="sticky bottom-0 -mx-5 border-t border-[var(--border)] bg-[var(--surface)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-        <ul className="grid grid-cols-3 gap-2">
-          {NAVIGATION_ITEMS.map((item) => (
-            <li key={item} className="min-w-0">
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                className="min-h-11 w-full cursor-not-allowed rounded-xl px-2 text-sm font-semibold text-[var(--muted)] opacity-60"
-              >
-                {item}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </main>
-  );
-}
+export function AppShell({storage,idFactory=()=>crypto.randomUUID()}:{storage?:StorageAdapter;idFactory?:()=>string}){const[view,setView]=useState<ViewState>({status:"loading"});const[activeStorage,setActiveStorage]=useState<StorageAdapter|undefined>(storage);const[tab,setTab]=useState<(typeof NAVIGATION_ITEMS)[number]>("여행");const[editingTrip,setEditingTrip]=useState(false);const[participantName,setParticipantName]=useState("");const[participantError,setParticipantError]=useState("");const[editingParticipant,setEditingParticipant]=useState<string|null>(null);const[expenseEditor,setExpenseEditor]=useState<string|"new"|null>(null);const[filter,setFilter]=useState<ExpenseFilter>({type:"all"});const resetInteraction=()=>{setTab("여행");setEditingTrip(false);setEditingParticipant(null);setParticipantName("");setParticipantError("");setExpenseEditor(null);setFilter({type:"all"})};const openExpenseEditor=(editor:string|"new")=>{if(view.status==="writeError")setView({status:"ready",data:view.data});setExpenseEditor(editor)};useEffect(()=>{let active=true;Promise.resolve().then(()=>{if(!active)return;const resolvedStorage=storage??getBrowserStorage();if(!resolvedStorage){setView({status:"corrupt",message:"브라우저 저장소에 접근할 수 없습니다."});return}setActiveStorage(resolvedStorage);const loaded=loadState(resolvedStorage);setView(loaded.status==="ready"?{status:"ready",data:loaded.data}:loaded)});return()=>{active=false}},[storage]);const apply=(result:ReturnType<typeof createTrip>)=>{if(result.ok){setView({status:"ready",data:result.state});return null}if(view.status==="ready"||view.status==="writeError")setView({status:"writeError",data:view.data,message:result.message});return result.message};const reset=()=>{if(!confirm("여행·일행·경비가 모두 삭제되며 복구할 수 없습니다. 초기화할까요?"))return;const resetStorage=activeStorage??getBrowserStorage();if(!resetStorage){setView({status:"corrupt",message:"브라우저 저장소에 접근할 수 없어 데이터를 초기화하지 못했습니다."});return}const result=clearState(resetStorage);if(result.ok){resetInteraction();setView({status:"empty"})}else{setView(view.status==="ready"||view.status==="writeError"?{status:"writeError",data:view.data,message:result.message}:{status:"corrupt",message:result.message})}};
+if(view.status==="loading")return <LoadingShell/>;if(view.status==="corrupt")return <main className="app"><section className="panel"><h1>{SHELL_COPY.title}</h1><h2>저장 데이터를 사용할 수 없습니다</h2><p role="alert" className="error">{view.message}</p><p>손상된 원본은 표시하거나 자동으로 덮어쓰지 않습니다.</p><button className="danger" onClick={reset}>전체 데이터 초기화</button></section></main>;if(view.status==="empty")return <main className="app"><section className="panel"><p className="eyebrow">{SHELL_COPY.eyebrow}</p><h1>여행을 시작해 볼까요?</h1><Notice/><TripForm submitLabel="여행 시작" onSubmit={input=>activeStorage?apply(createTrip(activeStorage,idFactory,input)):"저장소를 사용할 수 없습니다."}/></section></main>;
+const state=view.data,trip=state.trip;const mutate=(fn:()=>ReturnType<typeof createTrip>)=>apply(fn());const expenses=filterExpenses(trip,filter);return <main className="app"><header className="top"><p className="eyebrow">{trip.country||"국가 미지정"}</p><h1>{trip.name}</h1><p>{trip.startDate} ~ {trip.endDate}</p></header>{view.status==="writeError"&&<p role="alert" className="error banner">{view.message}</p>}<section className="content">
+{tab==="여행"&&<><section className="card"><div className="heading"><h2>여행 정보</h2><button onClick={()=>setEditingTrip(!editingTrip)}>{editingTrip?"닫기":"수정"}</button></div>{editingTrip&&<TripForm initial={{name:trip.name,country:trip.country,startDate:trip.startDate,endDate:trip.endDate}} submitLabel="여행 정보 저장" onSubmit={input=>{const error=activeStorage?mutate(()=>updateTrip(activeStorage,state,input)):"저장소 오류";if(!error)setEditingTrip(false);return error}}/>}<Notice/></section><section className="card"><div className="heading"><h2>일행 관리</h2><span>{trip.participants.length} / 10명</span></div><form className="inline" onSubmit={e=>{e.preventDefault();if(normalizeText(participantName).length>TEXT_LIMITS.participantName){setParticipantError("일행 이름은 정돈 후 50자 이하여야 합니다.");return}if(!activeStorage)return;const result=editingParticipant?updateParticipant(activeStorage,state,editingParticipant,participantName):addParticipant(activeStorage,state,idFactory,participantName);const error=apply(result);setParticipantError(error??"");if(!error){setParticipantName("");setEditingParticipant(null)}}}><input aria-label="일행 표시 이름" placeholder="일행 이름" value={participantName} onChange={e=>setParticipantName(e.target.value)}/><button className="primary">{editingParticipant?"수정":"추가"}</button></form>{participantError&&<p role="alert" className="error">{participantError}</p>}{trip.participants.length===0?<p className="empty">경비를 등록하려면 일행을 먼저 추가해 주세요.</p>:<ul className="list">{trip.participants.map(p=><li key={p.id}><strong>{p.displayName}</strong><div className="actions"><button onClick={()=>{setEditingParticipant(p.id);setParticipantName(p.displayName)}}>이름 수정</button><button className="danger-text" onClick={()=>{if(!confirm(`${p.displayName} 일행을 삭제할까요?`)||!activeStorage)return;const result=deleteParticipant(activeStorage,state,p.id);const error=apply(result);setParticipantError(error??"");if(result.ok&&editingParticipant===p.id){setEditingParticipant(null);setParticipantName("");setParticipantError("")}}}>삭제</button></div></li>)}</ul>}</section><section className="card"><h2>전체 데이터</h2><button className="danger" onClick={reset}>전체 데이터 초기화</button></section></>}
+{tab==="경비"&&<><section className="heading"><h2>경비</h2><button className="primary" disabled={!trip.participants.length} onClick={()=>openExpenseEditor("new")}>경비 등록</button></section>{!trip.participants.length&&<p className="empty">일행이 없어 경비를 등록할 수 없습니다.</p>}{expenseEditor&&<ExpenseForm key={expenseEditor} state={state} existing={expenseEditor==="new"?undefined:trip.expenses.find(e=>e.id===expenseEditor)} onCancel={()=>setExpenseEditor(null)} onSave={input=>{if(!activeStorage)return "저장소 오류";const result=expenseEditor==="new"?addExpense(activeStorage,state,idFactory,input):updateExpense(activeStorage,state,expenseEditor,input);const error=apply(result);if(!error)setExpenseEditor(null);return error}}/>}<section className="filters" aria-label="경비 필터"><button aria-pressed={filter.type==="all"} onClick={()=>setFilter({type:"all"})}>전체</button><button aria-pressed={filter.type==="preparation"} onClick={()=>setFilter({type:"preparation"})}>준비 기간</button><input aria-label="특정 날짜" type="date" value={filter.type==="date"?filter.date:""} onChange={e=>setFilter(e.target.value?{type:"date",date:e.target.value}:{type:"all"})}/></section>{trip.expenses.length===0?<p className="empty">아직 경비가 없습니다. 첫 경비를 추가해 보세요.</p>:expenses.length===0?<p className="empty">선택한 필터에 해당하는 경비가 없습니다. 전체 필터를 선택해 주세요.</p>:<ul className="expense-list">{expenses.map(e=>{const payer=trip.participants.find(p=>p.id===e.payerParticipantId)?.displayName;return <li className="card" key={e.id}><div className="heading"><h3>{e.title}</h3><strong>{formatAmountMinor(e.currency,e.amountMinor)} {e.currency}</strong></div><p>{e.expenseDate<trip.startDate?`준비 기간 · ${e.expenseDate}`:e.expenseDate}</p><p>{payer} 결제 · {e.kind==="shared"?"공동 경비":"개인 지출"}</p><div className="actions"><button onClick={()=>openExpenseEditor(e.id)}>수정</button><button className="danger-text" onClick={()=>{if(!confirm(expenseDeletionMessage(e))||!activeStorage)return;const result=deleteExpense(activeStorage,state,e.id);apply(result);if(result.ok&&expenseEditor===e.id)setExpenseEditor(null)}}>삭제</button></div></li>})}</ul>}</>}{tab==="정산"&&<section className="card empty"><h2>정산은 준비 중입니다</h2><p>WP-03에서 제공할 예정입니다.</p></section>}</section><nav aria-label="모바일 주요 메뉴"><ul>{NAVIGATION_ITEMS.map(item=><li key={item}><button aria-current={tab===item?"page":undefined} onClick={()=>setTab(item)}>{item}</button></li>)}</ul></nav></main>}
+function LoadingShell(){return <main className="app loading"><section aria-labelledby="app-title" aria-busy="true" className="panel"><p className="eyebrow">{SHELL_COPY.eyebrow}</p><h1 id="app-title">{SHELL_COPY.title}</h1><div role="status"><p>{SHELL_COPY.status}</p></div><p>{SHELL_COPY.storageNotice}</p></section><nav aria-label="모바일 주요 메뉴"><ul>{NAVIGATION_ITEMS.map(item=><li key={item}><button disabled aria-disabled="true">{item}</button></li>)}</ul></nav></main>}

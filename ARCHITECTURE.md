@@ -57,6 +57,7 @@ type StoredStateV1 = {
       payerParticipantId: string;
       kind: "shared" | "personal";
       participantIds: string[];
+      participantCountSnapshot: number;
     }>;
   };
 };
@@ -64,12 +65,15 @@ type StoredStateV1 = {
 
 - 단일 활성 여행이므로 `trip` 배열을 두지 않는다.
 - ID는 브라우저에서 생성하며 저장 데이터 안에서 유일해야 한다.
-- 공동 경비의 `participantIds`는 생성 시점 전체 일행 ID의 중복 없는 스냅샷이고 결제자 ID를 포함한다.
-- 공동 경비 수정은 스냅샷을 유지한다. 일부 선택이나 최신 인원으로 자동 교체하지 않는다.
-- 개인 지출의 `participantIds`는 빈 배열이다.
+- 공동 경비의 `participantIds`는 생성 시점 전체 일행 ID의 중복 없는 스냅샷이고 결제자 ID를 포함하며, `participantCountSnapshot`은 그 배열 길이인 1~10의 정수다.
+- 공동 경비 수정은 두 스냅샷 필드를 유지한다. 개인 지출에서 공동 경비로 바꿀 때는 변경 시점 전체 일행과 인원수로 새로 만든다. 일부 선택이나 최신 인원으로 자동 교체하지 않는다.
+- 개인 지출의 `participantIds`는 빈 배열이고 `participantCountSnapshot`은 0이다. 공동 경비에서 개인 지출로 바꿀 때도 같은 값으로 초기화한다.
+- 이후 일행이 추가될 수 있으므로 과거 `participantIds`는 현재 전체 일행의 정상 부분집합일 수 있으며, 저장 스키마는 둘의 단순 equality를 요구하지 않는다. 과거 시점 전체 명단은 현재 데이터만으로 복원할 수 없고 localStorage 직접 변조에 대한 보안 무결성은 보장하지 않는 실험판 한계가 있다.
 - 일행 ID는 어떤 경비의 결제자 또는 `participantIds`에 남아 있는 동안 삭제할 수 없다.
 - Zod 교차 검증으로 날짜, 최대 10명, ID 참조, 이름 유일성, 통화/금액, kind별 스냅샷 불변식을 검사한다.
-- **TBD:** 텍스트 최대 길이, 금액 상한, 표시 이름 정규화 상세. WP-02 전에 확정한다.
+- 여행 이름과 국가는 100자, 일행 표시 이름은 50자, 경비 항목명은 120자 이하다. Unicode NFKC와 공백 정돈 후 JavaScript 문자열 길이로 검사한다.
+- 저장 최소 단위 금액 상한은 `999999999999`이며 WP-02 경비 입력과 저장 스키마에서 검사한다. WP-01 일반 금액 파서는 상한을 두지 않는다.
+- 표시 이름은 Unicode NFKC → 앞뒤 공백 제거 → 연속 공백 한 칸 축소 순서로 저장한다. 표시 대소문자는 유지하고, 중복 비교 키는 정돈된 이름의 `toLowerCase()` 결과다.
 
 ## 금액 입력·직렬화·계산 경계
 
@@ -150,4 +154,3 @@ type StoredStateV1 = {
 - Preview와 Production 모두 해당 브라우저의 localStorage만 사용한다.
 - 실제 배포는 사용자 승인 전까지 수행하지 않는다.
 - **TBD:** 목표 브라우저 버전과 Vercel 프로젝트/도메인. WP-04 전 확정한다.
-
