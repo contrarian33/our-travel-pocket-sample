@@ -80,7 +80,7 @@ describe("AppShell", () => {
     expect(screen.getByText("일행이 없어 경비를 등록할 수 없습니다.")).toBeTruthy();
     expect(screen.getByText(/아직 경비가 없습니다/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "정산" }));
-    expect(screen.getByText("정산은 준비 중입니다")).toBeTruthy();
+    expect(screen.getByText(/아직 공동 경비가 없습니다/)).toBeTruthy();
   });
 
   it("저장 실패 시 초기 설정 입력값과 오류를 유지한다", async () => {
@@ -283,6 +283,20 @@ describe("AppShell", () => {
     expect(expenses).toHaveLength(3);
     expect(expenses[0]).toEqual(originalA);
     expect(expenses[2]).toMatchObject({id:"new-expense",title:"새 경비",participantIds:["p1","p2","p3"],participantCountSnapshot:3});
+  });
+
+  it("정산 화면에 공동 경비 집계, 최소 송금과 항목별 분할 근거를 표시한다", async () => {
+    const storage = new MemoryStorage();
+    storage.setItem("our-travel-pocket:v1", JSON.stringify({schemaVersion:1,trip:{id:"t",name:"여행",country:null,startDate:"2026-08-28",endDate:"2026-08-30",participants:[{id:"a",displayName:"아라"},{id:"b",displayName:"보라"}],expenses:[{id:"shared",title:"숙소",expenseDate:"2026-08-28",currency:"KRW",amountMinor:"101",payerParticipantId:"a",kind:"shared",participantIds:["a","b"],participantCountSnapshot:2},{id:"personal",title:"개인 쇼핑",expenseDate:"2026-08-28",currency:"KRW",amountMinor:"999",payerParticipantId:"b",kind:"personal",participantIds:[],participantCountSnapshot:0}]}}));
+    render(<AppShell storage={storage} />);
+    await screen.findByRole("heading", { name: "여행 정보" });
+    fireEvent.click(screen.getByRole("button", { name: "정산" }));
+    expect(screen.getByRole("heading", { name: "공동 경비 집계" })).toBeTruthy();
+    expect(screen.getAllByText("101 KRW")).toHaveLength(2);
+    expect(screen.queryByText("999 KRW")).toBeNull();
+    expect(screen.getAllByText("보라").length).toBeGreaterThan(0);
+    expect(screen.getByText("스냅샷 인원").nextElementSibling?.textContent).toBe("2명");
+    expect(screen.getByText("결제자 나머지").nextElementSibling?.textContent).toBe("1 KRW");
   });
 });
 
