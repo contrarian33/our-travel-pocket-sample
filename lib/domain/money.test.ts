@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DomainError } from "./errors";
-import { formatAmountMinor, normalizeAmountMinor, parseDisplayAmount } from "./money";
+import { formatAmountMinor, formatAmountMinorInput, normalizeAmountMinor, parseDisplayAmount } from "./money";
 
 describe("money", () => {
   it.each([
@@ -37,19 +37,27 @@ describe("money", () => {
     const display = "123456789012345678901234567890.12";
     const minor = parseDisplayAmount("USD", display);
     expect(minor).toBe("12345678901234567890123456789012");
-    expect(formatAmountMinor("USD", minor)).toBe(display);
+    expect(formatAmountMinorInput("USD", minor)).toBe(display);
+    expect(formatAmountMinor("USD", minor)).toBe("123,456,789,012,345,678,901,234,567,890.12");
   });
 
   it.each([
     ["KRW", "0007", "7"],
-    ["JPY", "900719925474099300000", "900719925474099300000"],
+    ["JPY", "900719925474099300000", "900,719,925,474,099,300,000"],
     ["USD", "1", "0.01"],
     ["USD", "10", "0.10"],
     ["USD", "1200", "12.00"],
+    ["KRW", "1234567", "1,234,567"],
+    ["USD", "123456789", "1,234,567.89"],
     ["KRW", "0", "0"],
     ["USD", "0", "0.00"],
   ] as const)("%s 최소 단위 %s를 %s로 표시한다", (currency, minor, display) => {
     expect(formatAmountMinor(currency, minor)).toBe(display);
+  });
+
+  it("수정 폼 입력값은 쉼표 없이 반환한다", () => {
+    expect(formatAmountMinorInput("KRW", "1234567")).toBe("1234567");
+    expect(formatAmountMinorInput("USD", "123456789")).toBe("1234567.89");
   });
 
   it("최소 단위 저장값은 양의 정수로 정규화한다", () => {

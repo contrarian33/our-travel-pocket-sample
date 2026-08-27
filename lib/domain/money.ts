@@ -45,7 +45,7 @@ export function parseDisplayAmount(currency: Currency, value: string): string {
   return normalizePositiveInteger(cents, "INVALID_DISPLAY_AMOUNT");
 }
 
-export function formatAmountMinor(currency: Currency, value: string): string {
+export function formatAmountMinorInput(currency: Currency, value: string): string {
   if (!POSITIVE_MINOR_PATTERN.test(value)) {
     throw new DomainError("INVALID_MINOR_AMOUNT", "금액은 부호 없는 10진수여야 합니다.");
   }
@@ -57,4 +57,15 @@ export function formatAmountMinor(currency: Currency, value: string): string {
 
   const padded = normalized.padStart(3, "0");
   return `${padded.slice(0, -2)}.${padded.slice(-2)}`;
+}
+
+function groupThousands(value: string): string {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+export function formatAmountMinor(currency: Currency, value: string): string {
+  const inputValue = formatAmountMinorInput(currency, value);
+  const [whole, fraction] = inputValue.split(".");
+  const groupedWhole = groupThousands(whole);
+  return fraction === undefined ? groupedWhole : `${groupedWhole}.${fraction}`;
 }
