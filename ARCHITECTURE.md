@@ -153,4 +153,5 @@ type StoredStateV1 = {
 - Next.js 결과를 Vercel에서 제공하며 런타임 영속 서비스를 두지 않는다.
 - Preview와 Production 모두 해당 브라우저의 localStorage만 사용한다.
 - 실제 배포는 사용자 승인 전까지 수행하지 않는다.
-- **TBD:** 목표 브라우저 버전과 Vercel 프로젝트/도메인. WP-04 전 확정한다.
+- 목표 브라우저는 검증 시점의 최신 Android Chrome과 최신 iPhone Safari다. 자동화에서는 Playwright Chromium과 WebKit의 360px 모바일 프로필로 각각 검증한다.
+- Vercel 프로젝트와 도메인은 아직 지정하지 않는다. 저장소에는 재사용 가능한 배포 준비 절차만 문서화하며 실제 프로젝트 연결과 배포는 사용자 승인 후 수행한다.
