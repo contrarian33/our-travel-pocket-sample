@@ -46,7 +46,10 @@ export function parseDisplayAmount(currency: Currency, value: string): string {
 }
 
 export function formatAmountMinor(currency: Currency, value: string): string {
-  const normalized = normalizeAmountMinor(value);
+  if (!POSITIVE_MINOR_PATTERN.test(value)) {
+    throw new DomainError("INVALID_MINOR_AMOUNT", "금액은 부호 없는 10진수여야 합니다.");
+  }
+  const normalized = value.replace(/^0+/, "") || "0";
   if (currency === "KRW" || currency === "JPY") return normalized;
   if (currency !== "USD") {
     throw new DomainError("INVALID_CURRENCY", "지원하지 않는 통화입니다.");

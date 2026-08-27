@@ -21,13 +21,13 @@ test("360px에서 여행·일행·경비·정산과 새로고침 복원을 완�
   await page.getByRole("button", { name: "경비 등록" }).click();
   await page.getByLabel("항목명").fill("숙소");
   await page.getByLabel("날짜", { exact: true }).fill("2026-08-28");
-  await page.getByLabel("금액").fill("101");
+  await page.getByLabel("금액").fill("100");
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByText("101 KRW")).toBeVisible();
+  await expect(page.getByText("100 KRW")).toBeVisible();
 
   await page.getByRole("button", { name: "정산", exact: true }).click();
   await expect(page.getByRole("heading", { name: "공동 경비 집계" })).toBeVisible();
-  await expect(page.getByText("결제자 나머지").locator("xpath=following-sibling::dd")).toHaveText("1 KRW");
+  await expect(page.getByText("결제자 나머지").locator("xpath=following-sibling::dd")).toHaveText("0 KRW");
   await expect(page.getByText("보라").first()).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);

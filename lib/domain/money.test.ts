@@ -46,6 +46,8 @@ describe("money", () => {
     ["USD", "1", "0.01"],
     ["USD", "10", "0.10"],
     ["USD", "1200", "12.00"],
+    ["KRW", "0", "0"],
+    ["USD", "0", "0.00"],
   ] as const)("%s 최소 단위 %s를 %s로 표시한다", (currency, minor, display) => {
     expect(formatAmountMinor(currency, minor)).toBe(display);
   });
